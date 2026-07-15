@@ -1,0 +1,61 @@
+:root {
+  --bg: #0b1220;
+  --bg-card: #111a2e;
+  --bg-card-2: #0e1626;
+  --bg-input: #0c1424;
+  --border: #1f2b45;
+  --border-2: #2a3a5c;
+  --text: #c7d2e4;
+  --text-h: #f1f5fb;
+  --muted: #7e8aa3;
+  --accent: #6366f1;
+  --accent-2: #22d3ee;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --douyin: #fd2e63;
+  --xhs: #ff4d6d;
+
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: dark;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  color: var(--text-h);
+  font-weight: 600;
+  margin: 0;
+}
+
+a {
+  color: var(--accent-2);
+}
+
+input,
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
