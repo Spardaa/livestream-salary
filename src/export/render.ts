@@ -55,18 +55,23 @@ tbody tr:nth-child(even) { background: #f8fafc; }
 tbody tr.empty { color: #cbd5e1; }
 tfoot tr.total { background: #1f3a5f; color: #fff; font-weight: 700; }
 strong { color: #0b1220; }
-@media print { body { background: #fff; padding: 0; } .sheet { box-shadow: none; max-width: none; border-radius: 0; padding: 0; } }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin: 8px 0 14px; }
+.chart { break-inside: avoid; }
+.chart h4 { font-size: 13px; margin: 0 0 4px; text-align: left; color: #334155; }
+.chart-svg svg { width: 100%; height: auto; display: block; }
+@media print { body { background: #fff; padding: 0; } .sheet { box-shadow: none; max-width: none; border-radius: 0; padding: 0; } .charts { grid-template-columns: 1fr; } }
 `;
 
-/** 组装完整的（带样式）报告 HTML 文档，供 Word/PDF 共用。 */
+/** 组装完整的（带样式）报告 HTML 文档，供 PDF 导出共用。 */
 export function buildReportHtml(opts: {
   employeeName: string;
   stats: Stats;
   bodyHtml: string;
+  chartsHtml?: string;
   salaryRows: SalaryRow[];
   salaryTotals: SalaryTotals | null;
 }): string {
-  const { employeeName, stats, bodyHtml, salaryRows, salaryTotals } = opts;
+  const { employeeName, stats, bodyHtml, chartsHtml, salaryRows, salaryTotals } = opts;
   const kpi = `
     <div class="sub">
       员工：<b>${employeeName || "—"}</b>　·　月份：${stats.month || "—"}　·
@@ -80,6 +85,7 @@ export function buildReportHtml(opts: {
 <h1>${employeeName || "员工"} ${stats.month || ""} 直播间月报</h1>
 ${kpi}
 ${bodyHtml}
+${chartsHtml ? `<h2>数据图表</h2>${chartsHtml}` : ""}
 <h2>附：薪资日表</h2>
 ${salaryTableHtml(salaryRows, salaryTotals)}
 </div></body></html>`;

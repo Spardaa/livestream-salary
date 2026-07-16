@@ -26,6 +26,7 @@ export function BatchRunner() {
     items,
     running,
     progress,
+    rateLimited,
     dayTable,
     issues,
     addFiles,
@@ -35,6 +36,7 @@ export function BatchRunner() {
   } = useStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(true);
 
   async function onPick(files: FileList | null) {
     if (files) await addFiles(files);
@@ -107,6 +109,21 @@ export function BatchRunner() {
             </div>
           )}
 
+          {rateLimited > 0 && (
+            <div className="warn-box">
+              ⚠ 本次抽取遇到 {rateLimited} 次 429 限速（已自动退避重试，未丢数据）。频繁出现说明并发偏高，可在「设置」降低并发数。
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="collapse-toggle"
+            onClick={() => setListOpen((o) => !o)}
+          >
+            <span>📷 图片列表（{items.length} 张）</span>
+            <span className="caret">{listOpen ? "▾" : "▸"}</span>
+          </button>
+          {listOpen && (
           <div className="item-list">
             {items.map((it) => {
               const c = it.consensus?.confidence;
@@ -176,6 +193,7 @@ export function BatchRunner() {
               );
             })}
           </div>
+          )}
         </>
       )}
 

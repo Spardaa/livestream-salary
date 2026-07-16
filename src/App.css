@@ -72,6 +72,27 @@
   color: var(--muted);
 }
 
+/* 轻量折叠头：用于图片列表、完整明细等子区块 */
+.collapse-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  padding: 10px 0;
+}
+.collapse-toggle .caret {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
 .settings-body {
   padding: 18px 20px;
   display: flex;

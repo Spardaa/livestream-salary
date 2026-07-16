@@ -12,6 +12,7 @@ function confClass(c?: Confidence | null) {
 export function DetailTable() {
   const items = useStore((s) => s.items);
   const [open, setOpen] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   const done = items
     .filter((it) => it.consensus)
@@ -24,7 +25,15 @@ export function DetailTable() {
 
   return (
     <div className="day-table-wrap">
-      <h3>完整明细（{done.length} 场直播）</h3>
+      <button
+        type="button"
+        className="collapse-toggle"
+        onClick={() => setCollapsed((c) => !c)}
+      >
+        <span>完整明细（{done.length} 场直播）</span>
+        <span className="caret">{collapsed ? "▸" : "▾"}</span>
+      </button>
+      {!collapsed && (
       <div className="table-scroll">
         <table className="day-table">
           <thead>
@@ -92,6 +101,7 @@ export function DetailTable() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

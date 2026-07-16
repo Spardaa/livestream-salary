@@ -4,12 +4,14 @@ export type Settings = {
   visionModel: string;
   textModel: string;
   consensusDraws: number;
+  concurrency: number;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   visionModel: DEFAULT_MODELS.vision,
   textModel: DEFAULT_MODELS.text,
   consensusDraws: DEFAULTS.consensusDraws,
+  concurrency: DEFAULTS.concurrency,
 };
 
 function ls(): Storage | null {

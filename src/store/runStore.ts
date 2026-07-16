@@ -11,12 +11,14 @@ import { fileToCompressedDataUrl } from "../lib/image";
 import { extractImage } from "../lib/glm/vision";
 import { parseSchedule, generateReport } from "../lib/glm/text";
 import { asyncPool } from "../lib/async-pool";
+import { resetRateLimited, getRateLimited } from "../lib/glm/client";
 import { vote, type ConsensusResult } from "../pipeline/consensus";
 import { validateBatch, type ValidationIssue } from "../pipeline/validate";
 import { aggregate, type DayRow } from "../pipeline/aggregate";
 import { buildEmployeeResults, type EmpDayRow, type Unattributed } from "../pipeline/schedule";
 import { computeSalary, type SalaryRow, type SalaryTotals } from "../pipeline/salary";
 import { computeStats, type Stats } from "../pipeline/stats";
+import { computeInsights, type Insights } from "../pipeline/insights";
 import { verifyE2E, unresolvedImageIds, type E2EVerification } from "../pipeline/verify-e2e";
 import type { ParsedSchedule, Extraction } from "../pipeline/schema";
 
@@ -39,6 +41,7 @@ export type EmployeeResult = {
   salaryRows: SalaryRow[];
   salaryTotals: SalaryTotals;
   stats: Stats;
+  insights: Insights;
   items: { id: string; name: string; consensus: ConsensusResult | null }[];
   reportMarkdown: string | null;
 };
@@ -62,6 +65,7 @@ type Store = {
   issues: ValidationIssue[];
   running: boolean;
   progress: { done: number; total: number };
+  rateLimited: number; // 本次任务遇到的 429 次数（含已重试成功）
 
   addFiles: (files: FileList | File[]) => Promise<void>;
   removeItem: (id: string) => void;
@@ -94,7 +98,7 @@ export const useStore = create<Store>((set, get) => {
     for (const id of ids)
       for (let i = 0; i < DEFAULTS.maxEscalationRounds; i++) tasks.push({ id });
     if (tasks.length === 0) return;
-    await asyncPool(tasks, DEFAULTS.concurrency, async (task) => {
+    await asyncPool(tasks, get().settings.concurrency, async (task) => {
       const it = get().items.find((i) => i.id === task.id);
       if (!it) return;
       try {
@@ -138,6 +142,7 @@ export const useStore = create<Store>((set, get) => {
     issues: [],
     running: false,
     progress: { done: 0, total: 0 },
+    rateLimited: 0,
 
     addFiles: async (files) => {
       const newItems: ImageItem[] = [];
@@ -167,6 +172,7 @@ export const useStore = create<Store>((set, get) => {
         dayTable: [],
         issues: [],
         progress: { done: 0, total: 0 },
+        rateLimited: 0,
         schedule: null,
         scheduleError: undefined,
         employees: [],
@@ -179,6 +185,7 @@ export const useStore = create<Store>((set, get) => {
       const { items, apiKey, month, running } = get();
       if (running || !apiKey || items.length === 0) return;
       const draws = get().settings.consensusDraws;
+      const concurrency = get().settings.concurrency;
 
       set({
         items: items.map((it) => ({
@@ -210,7 +217,9 @@ export const useStore = create<Store>((set, get) => {
         set({ progress: { done, total: tasks.length } });
       };
 
-      await asyncPool(tasks, DEFAULTS.concurrency, async (task) => {
+      resetRateLimited();
+
+      await asyncPool(tasks, concurrency, async (task) => {
         const item = get().items.find((i) => i.id === task.itemId);
         if (!item) {
           bump();
@@ -252,6 +261,7 @@ export const useStore = create<Store>((set, get) => {
       set({
         dayTable: aggregate(consItems, month || undefined),
         issues: validateBatch(consItems, month || undefined),
+        rateLimited: getRateLimited(),
         running: false,
       });
     },
@@ -276,6 +286,7 @@ export const useStore = create<Store>((set, get) => {
         set({ scheduleError: "请先在上方选择「月份」，排班与整月铺齐都需要月份。" });
         return;
       }
+      resetRateLimited();
       set({ salaryRunning: true, scheduleError: undefined, verification: null });
 
       try {
@@ -307,7 +318,7 @@ export const useStore = create<Store>((set, get) => {
           scheduleError = (e as Error).message;
         }
         if (!schedule) {
-          set({ schedule: null, scheduleError, salaryRunning: false, employees: [] });
+          set({ schedule: null, scheduleError, salaryRunning: false, employees: [], rateLimited: getRateLimited() });
           return;
         }
 
@@ -316,6 +327,7 @@ export const useStore = create<Store>((set, get) => {
         const employees: EmployeeResult[] = perEmployee.map((ed) => {
           const { rows, totals } = computeSalary(ed.days, ed.schedule.commissionRatePct);
           const stats = computeStats(rows, ed.items, month);
+          const insights = computeInsights(stats, rows, month);
           return {
             name: ed.schedule.name,
             commissionRatePct: ed.schedule.commissionRatePct,
@@ -323,6 +335,7 @@ export const useStore = create<Store>((set, get) => {
             salaryRows: rows,
             salaryTotals: totals,
             stats,
+            insights,
             items: ed.items,
             reportMarkdown: null,
           };
@@ -345,10 +358,11 @@ export const useStore = create<Store>((set, get) => {
           activeEmployee: employees[0]?.name ?? "",
           unattributed,
           verification: { ...ver, unresolved },
+          rateLimited: getRateLimited(),
           salaryRunning: false,
         });
       } catch (e) {
-        set({ salaryRunning: false, scheduleError: (e as Error).message });
+        set({ salaryRunning: false, scheduleError: (e as Error).message, rateLimited: getRateLimited() });
       }
     },
 
@@ -362,7 +376,7 @@ export const useStore = create<Store>((set, get) => {
       set({ reportRunning: true, reportError: undefined });
       try {
         const results = await asyncPool(employees, 2, async (e) => {
-          const md = await generateReport(e.stats, e.name);
+          const md = await generateReport(e.stats, e.insights, e.name);
           return { name: e.name, md };
         });
         const map = new Map(results.map((r) => [r.name, r.md]));

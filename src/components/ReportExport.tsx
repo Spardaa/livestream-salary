@@ -1,7 +1,7 @@
 import { useStore } from "../store/runStore";
 import { exportExcel } from "../export/excel";
-import { exportWord } from "../export/word";
 import { exportPdf } from "../export/pdf";
+import { renderChartsSvg, chartsBlockHtml } from "../export/charts";
 
 export function ReportExport() {
   const employees = useStore((s) => s.employees);
@@ -24,6 +24,7 @@ export function ReportExport() {
       employeeName: e.name,
       stats: e.stats,
       reportMd: e.reportMarkdown ?? "",
+      chartsHtml: chartsBlockHtml(renderChartsSvg(e.stats, e.insights)),
       salaryRows: e.salaryRows,
       salaryTotals: e.salaryTotals,
     };
@@ -45,7 +46,6 @@ export function ReportExport() {
   function exportAll() {
     for (const e of employees) {
       exportOneExcel(e.name);
-      if (e.reportMarkdown) exportWord(reportOpts(e.name));
     }
   }
 
@@ -84,9 +84,6 @@ export function ReportExport() {
             <button className="primary" onClick={() => exportOneExcel(active.name)} disabled={!finalized}>
               ⬇ Excel
             </button>
-            <button className="primary" onClick={() => exportWord(reportOpts(active.name))} disabled={!active.reportMarkdown}>
-              ⬇ Word
-            </button>
             <button className="primary" onClick={() => exportPdf(reportOpts(active.name))} disabled={!active.reportMarkdown}>
               ⬇ PDF（打印另存）
             </button>
@@ -104,7 +101,7 @@ export function ReportExport() {
 
       <div className="actions" style={{ marginTop: 12 }}>
         <button className="primary" onClick={exportAll} disabled={!finalized}>
-          ⬇ 一键导出全员（每人一个 Excel{employees.some((e) => e.reportMarkdown) ? " + Word" : ""}）
+          ⬇ 一键导出全员（每人一个 Excel）
         </button>
         <span className="muted">PDF 需逐人点（每次会打开打印窗口）。</span>
       </div>

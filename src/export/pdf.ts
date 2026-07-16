@@ -6,6 +6,7 @@ type ReportOpts = {
   employeeName: string;
   stats: Stats;
   reportMd: string;
+  chartsHtml?: string;
   salaryRows: SalaryRow[];
   salaryTotals: SalaryTotals | null;
 };
@@ -19,6 +20,7 @@ export function exportPdf(opts: ReportOpts) {
     employeeName: opts.employeeName,
     stats: opts.stats,
     bodyHtml: mdToHtml(opts.reportMd),
+    chartsHtml: opts.chartsHtml,
     salaryRows: opts.salaryRows,
     salaryTotals: opts.salaryTotals,
   });

@@ -6,6 +6,7 @@ import {
   type ParsedSchedule,
 } from "../../pipeline/schema";
 import type { Stats } from "../../pipeline/stats";
+import type { Insights } from "../../pipeline/insights";
 
 /**
  * 节点②：自然语言多员工排班 → 结构化 ParsedSchedule。
@@ -45,26 +46,61 @@ export async function parseSchedule(
   return parseJsonLenient(raw, ScheduleSchema);
 }
 
-/** 节点③：基于某员工的统计数据生成 Markdown 月报 + 工作建议。 */
+/**
+ * 节点③：基于某员工的统计数据 + 确定性洞察，生成分析师级 Markdown 月报。
+ * insights 内数字为纯函数计算结果（已校验事实），prompt 强制原样引用、禁止臆测。
+ */
 export async function generateReport(
   stats: Stats,
+  insights: Insights,
   employeeName: string,
   signal?: AbortSignal,
 ): Promise<string> {
   const { textModel } = getSettings();
   const prompt = [
-    "你是直播间运营数据分析师。根据下面某员工本月数据统计（JSON），写一份 Markdown 月报。",
-    "要求：",
-    "1. 中文，结构清晰，用 ## 小标题分节。",
-    "2. 包含：总览（GMV/退款/净营收/退款率/日均）、平台对比（抖音 vs 小红书）、时段对比（早班/下午班/晚班）、按日趋势、亮点、问题、工作建议（具体可执行）。",
-    "3. 工作建议要结合数据，指出可改进点（如某平台退款率偏高、某时段表现弱等）。",
-    "4. 可引用富指标（人均观播时长、新增粉丝、转化率等）辅助分析；metrics 里是各指标的平均值与样本数。",
-    "5. 直接输出 Markdown 正文，不要包在代码块里，不要前后多余说明。",
+    "你是资深直播间运营分析师。根据下方「已校验事实」为某员工撰写本月运营月报（中文 Markdown）。",
+    "",
+    "【硬约束 · 必须遵守】",
+    "1. 下方 JSON 内所有数字均为确定性计算结果、准确无误——必须原样引用，严禁改写、四舍五入或臆测任何未给出的数字。",
+    "2. 未在事实中提供的数据一律不得编造；若无相关数据，直接说明「数据不足」并略过该角度。",
+    "3. 「行动建议」必须可执行，且每一条都要绑定上文至少一个具体事实（日期或数值），不要空泛口号。",
+    "4. 直接输出 Markdown 正文：用 `##` 分节，不要包在代码块里，不要前后多余说明。",
+    "5. 强调关键数据：所有关键数字（金额、净营收、GMV、退款额/退款率、环比%、单场产出、场次、日期等）一律用 **加粗** 标注，使其一眼可见；普通描述性文字不加粗。",
+    "",
+    "【固定结构 · 按此顺序】",
+    "## 一、执行摘要",
+    "3–5 句：本月净营收总额、动量方向（上升/平稳/下降）、最关键的 1 个亮点与 1 个风险。",
+    "## 二、关键指标",
+    "总 GMV、净营收、退款率、日均净营收、直播场次（取自 stats）。简短列表即可。",
+    "## 三、趋势与动能",
+    "基于 insights.trend：周环比变化、峰值日/谷值日、连续涨/跌天数、月初到月末动量。引用具体日期与净额。",
+    "## 四、平台对比",
+    "基于 insights.platform：抖音 vs 小红书的净营收、单场产出、退款率；谁是主力、是否存在高退款平台。引用数值。",
+    "## 五、风险与异常",
+    "基于 insights.anomalies：高退款日、低产出日。每条带日期+数值，并给可能原因假设与排查方向。",
+    "## 六、亮点与最佳实践",
+    "基于 stats.topSessions：表现最好的场次，提炼可复制经验。",
+    "## 七、行动建议",
+    "3–5 条具体可执行建议，每条绑定上文一个事实。",
+    "",
+    "（薪资日表由系统自动附在文末，你无需输出。）",
     "",
     `员工：${employeeName || "（未填）"}　月份：${stats.month || ""}`,
-    "数据统计 JSON：",
+    "",
+    "===== stats（精简） =====",
     "```json",
-    JSON.stringify(stats),
+    JSON.stringify({
+      month: stats.month,
+      days: stats.days,
+      sessions: stats.sessions,
+      finance: stats.finance,
+      topSessions: stats.topSessions,
+    }),
+    "```",
+    "",
+    "===== insights（已校验事实） =====",
+    "```json",
+    JSON.stringify(insights),
     "```",
   ].join("\n");
 

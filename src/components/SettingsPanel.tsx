@@ -71,6 +71,22 @@ export function SettingsPanel() {
             />
             <small>Layer1 多数表决次数，建议 ≥3；越多越准但越慢。提成比例改为每人单独填（见②排班）。</small>
           </label>
+
+          <label className="field">
+            <span>并发抽取数（默认 5，无上限）</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={settings.concurrency}
+              onChange={(e) =>
+                setSettings({
+                  concurrency: Math.max(1, Math.round(Number(e.target.value) || 1)),
+                })
+              }
+            />
+            <small>同时在途的 GLM 请求数，无上限。建议按账号限速从小到大往上调；遇 429 会自动退避重试，并给出提示。</small>
+          </label>
         </div>
       )}
     </section>

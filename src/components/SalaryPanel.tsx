@@ -22,6 +22,7 @@ export function SalaryPanel() {
   const verification = useStore((s) => s.verification);
   const apiKey = useStore((s) => s.apiKey);
   const month = useStore((s) => s.month);
+  const rateLimited = useStore((s) => s.rateLimited);
 
   const hasItems = items.some((it) => it.consensus);
   const unresolved = verification?.unresolved ?? [];
@@ -62,6 +63,12 @@ export function SalaryPanel() {
       {salaryRunning && <div className="muted">升级 flagged 图 → 解析排班 → 归属 → 计算每人薪资 → Layer3 比对…</div>}
 
       {scheduleError && <div className="error-box">❌ 排班解析失败：{scheduleError}</div>}
+
+      {rateLimited > 0 && (
+        <div className="warn-box">
+          ⚠ 本次升级重抽遇到 {rateLimited} 次 429 限速（已自动退避重试）。频繁出现可在「设置」降低并发数。
+        </div>
+      )}
 
       {unattributed.length > 0 && (
         <div className="warn-box">
