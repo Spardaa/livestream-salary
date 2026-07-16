@@ -146,6 +146,58 @@ export function renderChartsSvg(stats: Stats, insights: Insights): ChartSvg[] {
     }),
   });
 
+  // 5. 转化漏斗（仅表格导入）
+  if (stats.rich && stats.rich.funnel.steps.length > 0) {
+    const steps = stats.rich.funnel.steps;
+    charts.push({
+      title: "转化漏斗（场均人数）",
+      svg: renderSvg({
+        ...base(),
+        tooltip: { trigger: "axis" },
+        grid: { left: 96, right: 40, top: 30, bottom: 30 },
+        xAxis: {
+          type: "value",
+          axisLabel: { color: TXT },
+          splitLine: { lineStyle: { color: SPLIT } },
+        },
+        yAxis: {
+          type: "category",
+          data: steps.map((s) => (s.fromPrev != null ? `${s.name} (${s.fromPrev}%)` : s.name)),
+          axisLabel: { color: TXT, fontSize: 10 },
+          axisLine: { lineStyle: { color: AXIS } },
+          axisTick: { show: false },
+        },
+        series: [
+          {
+            name: "场均人数",
+            type: "bar",
+            data: steps.map((s) => s.value),
+            itemStyle: { color: "#8b5cf6" },
+            label: { show: true, position: "right", color: TXT, fontSize: 10 },
+          },
+        ],
+      }),
+    });
+  }
+
+  // 6. 每日观看人数 / 平均在线（仅表格导入）
+  if (stats.rich && stats.rich.daily.length > 0) {
+    const d = stats.rich.daily;
+    charts.push({
+      title: "每日观看人数 / 平均在线",
+      svg: renderSvg({
+        ...base(),
+        tooltip: { trigger: "axis" },
+        xAxis: xAxis(d.map((x) => x.date.slice(5))),
+        yAxis: yAxisPct(false),
+        series: [
+          { name: "观看人数", type: "bar", data: d.map((x) => x.viewers), itemStyle: { color: "#8b5cf6" } },
+          { name: "平均在线", type: "line", smooth: true, data: d.map((x) => x.avgOnline), itemStyle: { color: "#10b981" } },
+        ],
+      }),
+    });
+  }
+
   return charts;
 }
 

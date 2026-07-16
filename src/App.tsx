@@ -22,7 +22,7 @@ export default function App() {
       <main className="card">
         <h2>① 批量抽取</h2>
         <p className="hint">
-          拖入本月全部截图 → 每张独立三抽 + 多数表决 + 确定性兜底校验 → 合并成日表。
+          两种录入（互斥）：截图识图（每张三抽 + 多数表决 + 兜底校验）或 表格导入（解析抖音/小红书明细表，字段更全、无需 API Key、月报更专业）→ 合并成日表。
         </p>
         <BatchRunner />
       </main>

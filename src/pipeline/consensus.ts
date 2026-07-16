@@ -1,4 +1,4 @@
-import type { Confidence } from "./types";
+import type { Confidence, RichMetrics } from "./types";
 import type { Extraction } from "./schema";
 
 /** 一张图的三抽表决结果 */
@@ -9,11 +9,12 @@ export type ConsensusResult = {
   dissents: Extraction[]; // 与采纳值不一致的抽取
 };
 
-/** 一张图（带表决结果）——供 validate/aggregate 消费 */
+/** 一张图（带表决结果）——供 validate/aggregate 消费。rich 仅表格导入时存在。 */
 export type ConsensusItem = {
   id: string;
   name: string;
   consensus: ConsensusResult | null;
+  rich?: RichMetrics;
 };
 
 /** 关键字段签名：平台|日期|开播|GMV|退款。日期/时间已在 schema 归一化。 */

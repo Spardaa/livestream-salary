@@ -81,6 +81,45 @@ export function Dashboard() {
     ],
   };
 
+  const rich = stats.rich;
+
+  const richKpis = rich
+    ? [
+        <div className="kpi" key="online"><b>场均在线</b><span>{rich.avgOnline}</span></div>,
+        <div className="kpi" key="conv"><b>场均转化</b><span>{rich.avgConversionRate}%</span></div>,
+        <div className="kpi" key="fans"><b>净增粉</b><span>{rich.netFollowers}</span></div>,
+      ]
+    : [];
+
+  const funnelOpt = rich && rich.funnel.steps.length > 0
+    ? {
+        ...commonGrid(),
+        tooltip: { trigger: "axis" },
+        xAxis: { type: "value", axisLabel: { color: BASE }, splitLine: { lineStyle: { color: "#1f2b45" } } },
+        yAxis: {
+          type: "category",
+          data: rich.funnel.steps.map((s) => (s.fromPrev != null ? `${s.name} (${s.fromPrev}%)` : s.name)),
+          axisLabel: { color: BASE, fontSize: 11 },
+        },
+        series: [
+          { name: "场均人数", type: "bar", data: rich.funnel.steps.map((s) => s.value), itemStyle: { color: "#a78bfa" }, label: { show: true, position: "right", color: BASE } },
+        ],
+      }
+    : null;
+
+  const viewersOpt = rich && rich.daily.length > 0
+    ? {
+        ...commonGrid(),
+        tooltip: { trigger: "axis" },
+        xAxis: { type: "category", data: rich.daily.map((d) => d.date.slice(5)), axisLabel: { color: BASE } },
+        yAxis: { type: "value", axisLabel: { color: BASE }, splitLine: { lineStyle: { color: "#1f2b45" } } },
+        series: [
+          { name: "观看人数", type: "bar", data: rich.daily.map((d) => d.viewers), itemStyle: { color: "#a78bfa" } },
+          { name: "平均在线", type: "line", smooth: true, data: rich.daily.map((d) => d.avgOnline), itemStyle: { color: "#34d399" } },
+        ],
+      }
+    : null;
+
   return (
     <div className="dashboard">
       <h3 style={{ marginBottom: 8 }}>{active.name} · 看板</h3>
@@ -90,12 +129,15 @@ export function Dashboard() {
         <div className="kpi"><b>退款率</b><span>{stats.finance.total.refundRate}%</span></div>
         <div className="kpi"><b>日均净</b><span>¥{stats.finance.avgDailyNet}</span></div>
         <div className="kpi"><b>场次</b><span>{stats.sessions}</span></div>
+        {richKpis}
       </div>
       <div className="charts">
         <div className="chart"><h4>每日净 GMV 趋势</h4><ReactECharts option={trendOpt} style={{ height: 240 }} /></div>
         <div className="chart"><h4>平台 GMV 占比</h4><ReactECharts option={pieOpt} style={{ height: 240 }} /></div>
         <div className="chart"><h4>早班 / 下午班 / 晚班</h4><ReactECharts option={slotOpt} style={{ height: 240 }} /></div>
         <div className="chart"><h4>退款率</h4><ReactECharts option={refundOpt} style={{ height: 240 }} /></div>
+        {funnelOpt && <div className="chart"><h4>转化漏斗（场均人数）</h4><ReactECharts option={funnelOpt} style={{ height: 240 }} /></div>}
+        {viewersOpt && <div className="chart"><h4>每日观看人数 / 平均在线</h4><ReactECharts option={viewersOpt} style={{ height: 240 }} /></div>}
       </div>
       <p className="muted" style={{ marginTop: 6 }}>月份 {month || "—"} · 共 {employees.length} 人，可在「②」切换查看其他人。</p>
     </div>

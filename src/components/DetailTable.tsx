@@ -1,6 +1,9 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useStore } from "../store/runStore";
 import type { Confidence } from "../pipeline/types";
+import type { ConsensusResult } from "../pipeline/consensus";
+
+type Row = { id: string; name: string; consensus: ConsensusResult | null };
 
 function confClass(c?: Confidence | null) {
   if (c === "high") return "conf conf-high";
@@ -10,11 +13,22 @@ function confClass(c?: Confidence | null) {
 }
 
 export function DetailTable() {
+  const source = useStore((s) => s.source);
   const items = useStore((s) => s.items);
+  const tableItems = useStore((s) => s.tableItems);
   const [open, setOpen] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
-  const done = items
+  // 选择器必须返回稳定引用（否则 useSyncExternalStore 死循环）；这里取稳定切片再用 useMemo 派生。
+  const rows: Row[] = useMemo(
+    () =>
+      source === "table"
+        ? tableItems.map((t) => ({ id: t.id, name: t.name, consensus: t.consensus }))
+        : items.map((it) => ({ id: it.id, name: it.name, consensus: it.consensus })),
+    [source, tableItems, items],
+  );
+
+  const done = rows
     .filter((it) => it.consensus)
     .sort(
       (a, b) =>

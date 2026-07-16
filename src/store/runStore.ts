@@ -12,15 +12,16 @@ import { extractImage } from "../lib/glm/vision";
 import { parseSchedule, generateReport } from "../lib/glm/text";
 import { asyncPool } from "../lib/async-pool";
 import { resetRateLimited, getRateLimited } from "../lib/glm/client";
-import { vote, type ConsensusResult } from "../pipeline/consensus";
+import { vote, type ConsensusResult, type ConsensusItem } from "../pipeline/consensus";
 import { validateBatch, type ValidationIssue } from "../pipeline/validate";
 import { aggregate, type DayRow } from "../pipeline/aggregate";
 import { buildEmployeeResults, type EmpDayRow, type Unattributed } from "../pipeline/schedule";
 import { computeSalary, type SalaryRow, type SalaryTotals } from "../pipeline/salary";
 import { computeStats, type Stats } from "../pipeline/stats";
 import { computeInsights, type Insights } from "../pipeline/insights";
-import { verifyE2E, unresolvedImageIds, type E2EVerification } from "../pipeline/verify-e2e";
+import { verifyE2E, unresolvedImageIds, type E2EVerification, type E2EItem } from "../pipeline/verify-e2e";
 import type { ParsedSchedule, Extraction } from "../pipeline/schema";
+import type { SourceMode, Platform, RichMetrics } from "../pipeline/types";
 
 export type ImageItem = {
   id: string;
@@ -30,6 +31,16 @@ export type ImageItem = {
   draws: Extraction[];
   consensus: ConsensusResult | null;
   error?: string;
+};
+
+/** 表格导入的一场直播（已是真实值，无需三抽表决）。 */
+export type TableItem = {
+  id: string;
+  name: string; // 文件名#行号
+  platform: Platform;
+  anchor: string; // 主播昵称
+  consensus: ConsensusResult;
+  rich: RichMetrics;
 };
 
 export type SalaryVerification = E2EVerification & { unresolved: string[] };
@@ -51,6 +62,24 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
+/** 统一出口：image/table 两种来源都映射成 ConsensusItem[]（表格行携带 rich）。
+ * 归属始终由排班(日期×时段)决定，表格是公司账号数据，不做主播筛选。 */
+function activeConsensusItems(state: {
+  source: SourceMode;
+  items: ImageItem[];
+  tableItems: TableItem[];
+}): ConsensusItem[] {
+  if (state.source === "table") {
+    return state.tableItems.map((t) => ({
+      id: t.id,
+      name: t.name,
+      consensus: t.consensus,
+      rich: t.rich,
+    }));
+  }
+  return state.items.map((it) => ({ id: it.id, name: it.name, consensus: it.consensus }));
+}
+
 type Store = {
   apiKey: string;
   settings: Settings;
@@ -71,6 +100,15 @@ type Store = {
   removeItem: (id: string) => void;
   clear: () => void;
   runExtraction: () => Promise<void>;
+
+  // 表格导入（与截图互斥）
+  source: SourceMode; // "image"(默认) | "table"
+  tableItems: TableItem[];
+  importError?: string;
+  setSource: (m: SourceMode) => void;
+  addSpreadsheets: (files: FileList | File[]) => Promise<void>;
+  removeTableItem: (id: string) => void;
+  activeConsensusItems: () => ConsensusItem[];
 
   // 排班 + 多员工
   scheduleText: string;
@@ -144,6 +182,43 @@ export const useStore = create<Store>((set, get) => {
     progress: { done: 0, total: 0 },
     rateLimited: 0,
 
+    // ---- 表格导入（与截图互斥）----
+    source: "image",
+    tableItems: [],
+    importError: undefined,
+    setSource: (m) => {
+      // 互斥：切换时清空另一来源，避免混入
+      if (m === "image") set({ source: "image", tableItems: [], importError: undefined, dayTable: [], issues: [], schedule: null, employees: [], unattributed: [], verification: null });
+      else set({ source: "table", items: [], dayTable: [], issues: [], schedule: null, employees: [], unattributed: [], verification: null });
+    },
+    removeTableItem: (id) => set({ tableItems: get().tableItems.filter((t) => t.id !== id) }),
+    activeConsensusItems: () => activeConsensusItems(get()),
+
+    addSpreadsheets: async (files) => {
+      set({ importError: undefined });
+      try {
+        const { parseSpreadsheetFiles } = await import("../lib/spreadsheet");
+        const parsed = await parseSpreadsheetFiles(Array.from(files));
+        const newItems: TableItem[] = [];
+        for (const sheet of parsed) {
+          sheet.rows.forEach((row, i) => {
+            const ext = row.extraction;
+            newItems.push({
+              id: uid(),
+              name: `${sheet.fileName}#${i + 1}`,
+              platform: sheet.platform,
+              anchor: row.anchor,
+              consensus: { value: ext, confidence: "high", draws: [ext], dissents: [] },
+              rich: row.rich,
+            });
+          });
+        }
+        set((s) => ({ tableItems: [...s.tableItems, ...newItems] }));
+      } catch (e) {
+        set({ importError: (e as Error).message });
+      }
+    },
+
     addFiles: async (files) => {
       const newItems: ImageItem[] = [];
       for (const f of Array.from(files)) {
@@ -169,6 +244,8 @@ export const useStore = create<Store>((set, get) => {
     clear: () =>
       set({
         items: [],
+        tableItems: [],
+        importError: undefined,
         dayTable: [],
         issues: [],
         progress: { done: 0, total: 0 },
@@ -279,9 +356,9 @@ export const useStore = create<Store>((set, get) => {
     salaryRunning: false,
 
     runSalary: async () => {
-      const { items, scheduleText, month, salaryRunning } = get();
+      const { scheduleText, month, salaryRunning } = get();
       if (salaryRunning) return;
-      if (!items.some((it) => it.consensus)) return;
+      if (get().activeConsensusItems().length === 0) return;
       if (!month) {
         set({ scheduleError: "请先在上方选择「月份」，排班与整月铺齐都需要月份。" });
         return;
@@ -291,19 +368,18 @@ export const useStore = create<Store>((set, get) => {
 
       try {
         const year = Number(month.slice(0, 4));
+        const source = get().source;
 
-        // 1. 升级 flagged 图
-        const flaggedIds = items
-          .filter((it) => it.consensus?.confidence === "flagged")
-          .map((it) => it.id);
-        if (flaggedIds.length > 0) await escalate(flaggedIds, year);
+        // 1. 升级 flagged 图（仅截图模式；表格行为真实值，无需升级）
+        if (source === "image") {
+          const flaggedIds = get()
+            .items.filter((it) => it.consensus?.confidence === "flagged")
+            .map((it) => it.id);
+          if (flaggedIds.length > 0) await escalate(flaggedIds, year);
+        }
 
-        // 2. 重新原始聚合（抽取预览）
-        const consItems = get().items.map((it) => ({
-          id: it.id,
-          name: it.name,
-          consensus: it.consensus,
-        }));
+        // 2. 重新原始聚合（抽取预览）——统一从 activeConsensusItems 取
+        const consItems = get().activeConsensusItems();
         set({
           dayTable: aggregate(consItems, month),
           issues: validateBatch(consItems, month),
@@ -341,13 +417,21 @@ export const useStore = create<Store>((set, get) => {
           };
         });
 
-        // 5. Layer3 抽取稳定性 + 熔断
-        const e2eItems = get().items.map((it) => ({
-          id: it.id,
-          name: it.name,
-          draws: it.draws,
-          consensus: it.consensus,
-        }));
+        // 5. Layer3 抽取稳定性 + 熔断（表格行 draws=[value]，天然 consistent）
+        const e2eItems: E2EItem[] =
+          source === "table"
+            ? get().tableItems.map((t) => ({
+                id: t.id,
+                name: t.name,
+                draws: [t.consensus.value],
+                consensus: t.consensus,
+              }))
+            : get().items.map((it) => ({
+                id: it.id,
+                name: it.name,
+                draws: it.draws,
+                consensus: it.consensus,
+              }));
         const ver = verifyE2E(e2eItems);
         const unresolved = unresolvedImageIds(e2eItems);
 

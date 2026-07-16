@@ -57,6 +57,7 @@ export async function generateReport(
   signal?: AbortSignal,
 ): Promise<string> {
   const { textModel } = getSettings();
+  const rich = stats.rich;
   const prompt = [
     "你是资深直播间运营分析师。根据下方「已校验事实」为某员工撰写本月运营月报（中文 Markdown）。",
     "",
@@ -65,7 +66,10 @@ export async function generateReport(
     "2. 未在事实中提供的数据一律不得编造；若无相关数据，直接说明「数据不足」并略过该角度。",
     "3. 「行动建议」必须可执行，且每一条都要绑定上文至少一个具体事实（日期或数值），不要空泛口号。",
     "4. 直接输出 Markdown 正文：用 `##` 分节，不要包在代码块里，不要前后多余说明。",
-    "5. 强调关键数据：所有关键数字（金额、净营收、GMV、退款额/退款率、环比%、单场产出、场次、日期等）一律用 **加粗** 标注，使其一眼可见；普通描述性文字不加粗。",
+    "5. 强调关键数据：所有关键数字（金额、净营收、GMV、退款额/退款率、环比%、在线人数、转化率%、场次、日期等）一律用 **加粗** 标注，使其一眼可见；普通描述性文字不加粗。",
+    rich
+      ? "6. 本月数据来自平台明细表（含在线人数、转化漏斗、粉丝等富指标）。stats.rich 内所有字段均真实可用，按下方「富指标结构」逐节分析并引用具体数字；任一字段缺失（值为 0 或不存在）时说明「数据不足」即可，切勿臆测。"
+      : "6. 本月数据来自截图识别，仅有 GMV/退款；不得出现在线人数、转化漏斗等富指标。",
     "",
     "【固定结构 · 按此顺序】",
     "## 一、执行摘要",
@@ -82,6 +86,22 @@ export async function generateReport(
     "基于 stats.topSessions：表现最好的场次，提炼可复制经验。",
     "## 七、行动建议",
     "3–5 条具体可执行建议，每条绑定上文一个事实。",
+    ...(rich
+      ? [
+          "",
+          "【富指标结构 · 仅当 stats.rich 存在时输出，紧接第七节之后】",
+          "## 八、流量质量与人气",
+          "场均在线人数、峰值在线、场均观看人数、人均观看时长、场均直播时长（取自 stats.rich）。评价人气是否健康、观众黏性。",
+          "## 九、转化漏斗分析",
+          "基于 stats.rich.funnel.steps（曝光→观看→商品点击→成交，各步给出 fromPrev 留存%）、avgClickRate、avgConversionRate、avgPayRate。明确指出漏斗最薄弱环节并给出优化方向。",
+          "## 十、退款与粉丝",
+          "avgRefundRate、totalRefundPeople（stats.rich）结合 finance 退款率评估退款风险；totalNewFollowers、totalUnfollows、netFollowers 评估粉丝沉淀。",
+          "## 十一、时段效率对比",
+          "基于 stats.rich.bySlot（早班/下午班/晚班的场次、GMV、场均在线、场均观看、场均转化率）。指出产出与转化最佳的时段。",
+          "## 十二、最佳/最差场次与投放",
+          "基于 stats.rich.topSessions 与 bottomSessions（含日期、GMV、转化率、场均在线）：提炼可复制经验与教训；若 totalAdSpend>0，给出 ROAS（stats.rich.roas）并评估投放效率。",
+        ]
+      : []),
     "",
     "（薪资日表由系统自动附在文末，你无需输出。）",
     "",
@@ -89,13 +109,24 @@ export async function generateReport(
     "",
     "===== stats（精简） =====",
     "```json",
-    JSON.stringify({
-      month: stats.month,
-      days: stats.days,
-      sessions: stats.sessions,
-      finance: stats.finance,
-      topSessions: stats.topSessions,
-    }),
+    JSON.stringify(
+      rich
+        ? {
+            month: stats.month,
+            days: stats.days,
+            sessions: stats.sessions,
+            finance: stats.finance,
+            topSessions: stats.topSessions,
+            rich,
+          }
+        : {
+            month: stats.month,
+            days: stats.days,
+            sessions: stats.sessions,
+            finance: stats.finance,
+            topSessions: stats.topSessions,
+          },
+    ),
     "```",
     "",
     "===== insights（已校验事实） =====",
@@ -108,7 +139,7 @@ export async function generateReport(
     model: textModel,
     messages: [{ role: "user", content: prompt }],
     temperature: 0.5,
-    maxTokens: 4096,
+    maxTokens: rich ? 7168 : 4096,
     signal,
   });
   return raw.trim();

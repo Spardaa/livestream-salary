@@ -23,8 +23,11 @@ export function SalaryPanel() {
   const apiKey = useStore((s) => s.apiKey);
   const month = useStore((s) => s.month);
   const rateLimited = useStore((s) => s.rateLimited);
+  const source = useStore((s) => s.source);
+  const tableItems = useStore((s) => s.tableItems);
 
-  const hasItems = items.some((it) => it.consensus);
+  // 表格模式下 image items 为空，需按 source 判断是否有可结算数据
+  const hasItems = source === "table" ? tableItems.length > 0 : items.some((it) => it.consensus);
   const unresolved = verification?.unresolved ?? [];
   const active = employees.find((e) => e.name === activeEmployee) ?? employees[0];
 
@@ -57,10 +60,16 @@ export function SalaryPanel() {
         </button>
         {!apiKey && <span className="err-text">请先填 API Key</span>}
         {!month && apiKey && <span className="err-text">请先选月份</span>}
-        {!hasItems && apiKey && month && <span className="muted">先完成上方抽取</span>}
+        {!hasItems && apiKey && month && (
+          <span className="muted">{source === "table" ? "先在上方导入表格" : "先完成上方抽取"}</span>
+        )}
       </div>
 
-      {salaryRunning && <div className="muted">升级 flagged 图 → 解析排班 → 归属 → 计算每人薪资 → Layer3 比对…</div>}
+      {salaryRunning && (
+        <div className="muted">
+          {source === "table" ? "解析排班 → 归属 → 计算每人薪资 → Layer3 比对…" : "升级 flagged 图 → 解析排班 → 归属 → 计算每人薪资 → Layer3 比对…"}
+        </div>
+      )}
 
       {scheduleError && <div className="error-box">❌ 排班解析失败：{scheduleError}</div>}
 
