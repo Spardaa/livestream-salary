@@ -31,6 +31,18 @@ export function SettingsPanel() {
             <small>仅存浏览器本地 localStorage，不会上传。获取：open.bigmodel.cn / z.ai 控制台。</small>
           </label>
 
+          <label className="field">
+            <span>模型地址（Endpoint）</span>
+            <input
+              value={settings.endpoint}
+              onChange={(e) => setSettings({ endpoint: e.target.value })}
+              placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <small>OpenAI 兼容的完整地址（须含 /chat/completions）。默认智谱国内 open.bigmodel.cn，可换国际 api.z.ai；留空回退默认。</small>
+          </label>
+
           <div className="row2">
             <label className="field">
               <span>视觉模型</span>

@@ -1,5 +1,6 @@
 // GLM API（OpenAI 兼容）。CORS 已实测通过：浏览器 fetch 直连可行。
-export const GLM_ENDPOINT = "https://api.z.ai/api/paas/v4/chat/completions";
+// 默认智谱国内端点，可在「设置」里改为国际（api.z.ai）等 OpenAI 兼容端点。
+export const DEFAULT_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
 // 模型 ID：默认填用户账号值，可在「设置」里改。
 // 若调用报「模型不存在」，文本可改 glm-5，视觉可改 glm-4.5v / glm-4v-plus 等。

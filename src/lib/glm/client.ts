@@ -1,5 +1,5 @@
-import { DEFAULTS, GLM_ENDPOINT } from "../../config/constants";
-import { getApiKey } from "../storage";
+import { DEFAULT_ENDPOINT, DEFAULTS } from "../../config/constants";
+import { getApiKey, getSettings } from "../storage";
 
 export class GlmError extends Error {
   status?: number;
@@ -65,6 +65,9 @@ export async function chat(params: ChatParams): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) throw new GlmError("未设置 API Key，请先在「设置」里填入。");
 
+  // 地址可在「设置」里改；为空则回退默认。
+  const endpoint = (getSettings().endpoint ?? "").trim() || DEFAULT_ENDPOINT;
+
   const body: Record<string, unknown> = {
     model: params.model,
     messages: params.messages,
@@ -98,7 +101,7 @@ export async function chat(params: ChatParams): Promise<string> {
     }
 
     try {
-      const res = await fetch(GLM_ENDPOINT, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

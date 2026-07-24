@@ -1,6 +1,7 @@
-import { DEFAULT_MODELS, DEFAULTS, STORAGE_KEYS } from "../config/constants";
+import { DEFAULT_ENDPOINT, DEFAULT_MODELS, DEFAULTS, STORAGE_KEYS } from "../config/constants";
 
 export type Settings = {
+  endpoint: string;
   visionModel: string;
   textModel: string;
   consensusDraws: number;
@@ -8,6 +9,7 @@ export type Settings = {
 };
 
 const DEFAULT_SETTINGS: Settings = {
+  endpoint: DEFAULT_ENDPOINT,
   visionModel: DEFAULT_MODELS.vision,
   textModel: DEFAULT_MODELS.text,
   consensusDraws: DEFAULTS.consensusDraws,
